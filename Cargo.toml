@@ -1,0 +1,15 @@
+[package]
+name = "satnet_simulation"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+bevy = { version = "0.13", features = ["dynamic_linking"] } # dynamic_linking przyspiesza kompilację w devie
+bevy_egui = "0.27" # Wersja dopasowana do Bevy 0.13
+
+# Optymalizacje kompilacji dla wersji deweloperskiej, by silnik działał płynnie podczas testów
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3

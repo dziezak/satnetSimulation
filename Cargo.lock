@@ -1406,6 +1406,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "commands"
+version = "0.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "688226b9769bbf11a9d82a94fb4adda15793a6023d33a8ca7695dbafec6f4123"
+
+[[package]]
 name = "concurrent-queue"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2773,6 +2779,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "movement"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8a46093b028b71f6bac9e4409a580020093734f1743d8d66ad0977a411ca0454"
+
+[[package]]
 name = "moxcms"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3548,6 +3560,8 @@ version = "0.1.0"
 dependencies = [
  "bevy",
  "bevy_egui",
+ "commands",
+ "movement",
 ]
 
 [[package]]

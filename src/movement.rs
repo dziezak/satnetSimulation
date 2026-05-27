@@ -1,15 +1,27 @@
 use bevy::prelude::*;
-use crate::components::{Satellite, SimulationState};
+use crate::components::{Earth, GroundStation, Satellite, SimulationState};
 
 pub fn move_satellites(
     time: Res<Time>,
     sim_state: Res<SimulationState>,
-    mut query: Query<(&mut Transform, &mut Satellite)>,
+    mut sat_query: Query<(&mut Transform, &mut Satellite)>,
+    mut earth_query: Query<&mut Transform, (With<Earth>, Without<Satellite>)>,
+    mut station_query: Query<&mut Transform, (With<GroundStation>, Without<Earth>, Without<Satellite>)>,
 ) {
     if sim_state.is_paused { return; }
 
-    for (mut transform, mut satellite) in query.iter_mut() {
+    if let Ok(mut earth_transform) = earth_query.get_single_mut() {
+        earth_transform.scale = Vec3::splat(sim_state.earth_radius / 2.5);
+    }
+
+    if let Ok(mut station_transform) = station_query.get_single_mut() {
+        station_transform.scale = Vec3::new(0.0, sim_state.earth_radius, 0.0);
+    }
+
+    for (mut transform, mut satellite) in sat_query.iter_mut() {
         satellite.current_angle += satellite.orbit_speed * time.delta_seconds() * sim_state.sim_speed;
+
+        let dynamic_orbit_radius = sim_state.earth_radius + 1.2;
 
         let local_x = satellite.orbit_radius * satellite.current_angle.cos();
         let local_z = satellite.orbit_radius * satellite.current_angle.sin();

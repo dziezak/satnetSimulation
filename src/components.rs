@@ -14,6 +14,9 @@ pub struct SimulationState {
     pub current_protocol: RoutingProtocol,
     pub sim_speed: f32,
     pub is_paused: bool,
+    pub earth_radius: f32,
+    pub max_isl_distance: f32,
+    pub selected_satellite_id: Option<u32>,
 }
 
 #[derive(Component)]

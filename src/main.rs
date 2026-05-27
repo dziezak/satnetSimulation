@@ -33,10 +33,11 @@ fn setup_scene(
 ) {
     let num_planes = 6;
     let sats_per_plane = 8;
-    let radius = 5.5;
     let inclination = 45.0 * (PI / 180.0);
 
     sim_state.sim_speed = 1.0;
+    sim_state.earth_radius = 2.5;
+    sim_state.max_isl_distance = 6.0;
 
     command.spawn(Camera3dBundle {
         transform: Transform::from_xyz(0.0, 12.0, 15.0).looking_at(Vec3::ZERO, Vec3::Y),
@@ -70,6 +71,7 @@ fn setup_scene(
 
     command.spawn((
         PbrBundle {
+            ///Sprawdzic czy to ma sens
             mesh: meshes.add(Sphere::new(2.5).mesh().ico(5).unwrap()),
             material: materials.add(Color::rgb(0.1, 0.3, 0.7)),
             ..default()
@@ -77,7 +79,7 @@ fn setup_scene(
         Earth,
     ));
 
-    let station_pos = Vec3::new(0.0, 2.5, 0.0);
+    let station_pos = Vec3::new(0.0, sim_state.earth_radius, 0.0);
     command.spawn((
         PbrBundle {
             mesh: meshes.add(Sphere::new(0.15).mesh().ico(3).unwrap()),
@@ -107,7 +109,7 @@ fn setup_scene(
                 },
                 Satellite {
                     id: sat_id,
-                    orbit_radius: radius,
+                    orbit_radius: sim_state.earth_radius + 1.5, // + orbita
                     current_angle: starting_angle,
                     orbit_speed: 0.4,
                     inclination,

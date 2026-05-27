@@ -171,7 +171,6 @@ pub fn update_networks(
                 Sphere::new(0.4),
                 transform.translation,
                 Quat::IDENTITY,
-               // from_rotation_x(std::f32::consts::FRAC_PI_2),
                 Color::rgb(0.0, 0.8, 1.0)
             );
 

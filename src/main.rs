@@ -31,8 +31,8 @@ fn setup_scene(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut sim_state: ResMut<SimulationState>,
 ) {
-    let num_planes = 3;
-    let sats_per_plane = 4;
+    let num_planes = 6;
+    let sats_per_plane = 8;
     let radius = 5.5;
     let inclination = 45.0 * (PI / 180.0);
 

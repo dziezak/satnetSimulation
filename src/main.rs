@@ -38,6 +38,7 @@ fn setup_scene(
     sim_state.sim_speed = 1.0;
     sim_state.earth_radius = 2.5;
     sim_state.max_isl_distance = 6.0;
+    sim_state.reset_ram = false;
 
     command.spawn(Camera3dBundle {
         transform: Transform::from_xyz(0.0, 12.0, 15.0).looking_at(Vec3::ZERO, Vec3::Y),
@@ -118,6 +119,7 @@ fn setup_scene(
                     ram_usage: 1.0,
                     cpu_load: 5.0,
                     status_msg: "OK".to_string(),
+                    is_dead: false,
                 },
             ));
             sat_id += 1;

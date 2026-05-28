@@ -35,3 +35,15 @@ pub fn move_satellites(
         transform.translation = global_position;
     }
 }
+
+pub fn calculate_satellite_position(sat: &Satellite, angle_offset: f32) -> Vec3 {
+    let angle = sat.current_angle + angle_offset;
+    let local_x = sat.orbit_radius * angle.cos();
+    let local_z = sat.orbit_radius * angle.sin();
+    let local_position = Vec3::new(local_x, 0.0, local_z);
+
+    let inclination_rot = Quat::from_rotation_z(sat.inclination);
+    let lan_rot = Quat::from_rotation_y(sat.lan);
+
+    lan_rot * inclination_rot * local_position
+}

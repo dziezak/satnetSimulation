@@ -21,7 +21,7 @@ fn main() {
             movement::move_satellites,
             protocols::update_networks,
             ui::draw_gui,
-        ))
+        ).chain())
         .run();
 }
 
@@ -87,7 +87,6 @@ fn setup_scene(
     command.spawn((
         PbrBundle {
             mesh: meshes.add(Sphere::new(2.5).mesh().ico(5).unwrap()),
-            //material: materials.add(Color::rgb(0.1, 0.3, 0.7)),
             material: materials.add(StandardMaterial{
                 base_color_texture: Some(earth_texture),
                 ..default()
@@ -108,6 +107,22 @@ fn setup_scene(
         GroundStation { position: station_pos },
     ));
 
+    let sat_body = meshes.add(Cuboid::new(0.18, 0.10, 0.10));
+    let sat_panel = meshes.add(Cuboid::new(0.30, 0.02, 0.09));
+    let antenna_mesh = meshes.add(Cuboid::new(0.02, 0.08, 0.02));
+    let panel_mat = materials.add(StandardMaterial {
+        base_color: Color::rgb(0.05, 0.05, 0.4),
+        emissive: Color::rgb(0.0, 0.0, 0.15),
+        metallic: 0.9,
+        perceptual_roughness: 0.2,
+        ..default()
+    });
+    let antenna_mat = materials.add(StandardMaterial {
+        base_color: Color::rgb(0.8, 0.8, 0.8),
+        metallic: 1.0,
+        ..default()
+    });
+
     let mut sat_id = 0;
     for plane in 0..num_planes {
         let lan = (plane as f32) * (2.0 * PI / num_planes as f32);
@@ -117,17 +132,18 @@ fn setup_scene(
 
             command.spawn((
                 PbrBundle {
-                    mesh: meshes.add(Sphere::new(0.12).mesh().ico(3).unwrap()),
+                    mesh: sat_body.clone(),
                     material: materials.add(StandardMaterial {
                         base_color: Color::rgb(0.5, 0.5, 0.5),
-                        emissive: Color::rgb(0.2, 0.2, 0.2),
+                        metallic: 0.8,
+                        perceptual_roughness: 0.3,
                         ..default()
                     }),
                     ..default()
                 },
                 Satellite {
                     id: sat_id,
-                    orbit_radius: sim_state.earth_radius + 1.5, // + orbita
+                    orbit_radius: sim_state.earth_radius + 1.5,
                     current_angle: starting_angle,
                     orbit_speed: 0.4,
                     inclination,
@@ -138,7 +154,26 @@ fn setup_scene(
                     status_msg: "OK".to_string(),
                     is_dead: false,
                 },
-            ));
+            )).with_children(|parent| {
+                parent.spawn(PbrBundle {
+                    mesh: sat_panel.clone(),
+                    material: panel_mat.clone(),
+                    transform: Transform::from_xyz(-0.25, 0.0, 0.0),
+                    ..default()
+                });
+                parent.spawn(PbrBundle {
+                    mesh: sat_panel.clone(),
+                    material: panel_mat.clone(),
+                    transform: Transform::from_xyz(0.25, 0.0, 0.0),
+                    ..default()
+                });
+                parent.spawn(PbrBundle {
+                    mesh: antenna_mesh.clone(),
+                    material: antenna_mat.clone(),
+                    transform: Transform::from_xyz(0.0, 0.09, 0.0),
+                    ..default()
+                });
+            });
             sat_id += 1;
         }
     }

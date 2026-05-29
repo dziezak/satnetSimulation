@@ -136,9 +136,9 @@ fn building_network_topology(
                 .map(|(_, _, s, _)| s.status_msg.clone())
                 .unwrap_or_default();
 
-            let is_ready = !sat_status.contains("BROADCAST")
+            let is_ready = (!sat_status.contains("BROADCAST")
                 && !sat_status.contains("INIT")
-                && !sat_status.is_empty()
+                && !sat_status.is_empty())
                 || sat_status.contains("RFP");
 
             if !sat_list[i].has_path && !sat_is_dead && is_ready {

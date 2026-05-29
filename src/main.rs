@@ -30,10 +30,13 @@ fn setup_scene(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut sim_state: ResMut<SimulationState>,
+    asset_server: Res<AssetServer>,
 ) {
     let num_planes = 6;
     let sats_per_plane = 8;
     let inclination = 45.0 * (PI / 180.0);
+    let earth_texture: Handle<Image> = asset_server.load("earth.png");
+    let stars_texture: Handle<Image> = asset_server.load("stars.png");
 
     sim_state.sim_speed = 1.0;
     sim_state.earth_radius = 2.5;
@@ -70,11 +73,25 @@ fn setup_scene(
         ..default()
     });
 
+    command.spawn(PbrBundle {
+        mesh: meshes.add(Sphere::new(50.0).mesh().ico(3).unwrap()),
+        material: materials.add(StandardMaterial {
+            base_color_texture: Some(stars_texture),
+            unlit: true,
+            cull_mode: None,
+            ..default()
+        }),
+        ..default()
+    });
+
     command.spawn((
         PbrBundle {
-            ///Sprawdzic czy to ma sens
             mesh: meshes.add(Sphere::new(2.5).mesh().ico(5).unwrap()),
-            material: materials.add(Color::rgb(0.1, 0.3, 0.7)),
+            //material: materials.add(Color::rgb(0.1, 0.3, 0.7)),
+            material: materials.add(StandardMaterial{
+                base_color_texture: Some(earth_texture),
+                ..default()
+            }),
             ..default()
         },
         Earth,

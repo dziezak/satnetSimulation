@@ -12,6 +12,7 @@ pub fn move_satellites(
 
     if let Ok(mut earth_transform) = earth_query.get_single_mut() {
         earth_transform.scale = Vec3::splat(sim_state.earth_radius / 2.5);
+        earth_transform.rotate_y(0.05 * time.delta_seconds() * sim_state.sim_speed);
     }
 
     if let Ok(mut station_transform) = station_query.get_single_mut() {

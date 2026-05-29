@@ -16,16 +16,16 @@ pub fn move_satellites(
     }
 
     if let Ok(mut station_transform) = station_query.get_single_mut() {
-        station_transform.scale = Vec3::new(0.0, sim_state.earth_radius, 0.0);
+        station_transform.translation = Vec3::new(0.0, sim_state.earth_radius, 0.0);
     }
 
     for (mut transform, mut satellite) in sat_query.iter_mut() {
         satellite.current_angle += satellite.orbit_speed * time.delta_seconds() * sim_state.sim_speed;
 
-        let dynamic_orbit_radius = sim_state.earth_radius + 1.2;
+        let dynamic_orbit_radius = sim_state.earth_radius + 1.5;
 
-        let local_x = satellite.orbit_radius * satellite.current_angle.cos();
-        let local_z = satellite.orbit_radius * satellite.current_angle.sin();
+        let local_x = dynamic_orbit_radius * satellite.current_angle.cos();
+        let local_z = dynamic_orbit_radius * satellite.current_angle.sin();
         let local_position = Vec3::new(local_x, 0.0, local_z);
 
         let inclination_rot = Quat::from_rotation_z(satellite.inclination);

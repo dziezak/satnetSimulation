@@ -104,7 +104,7 @@ fn setup_scene(
             transform: Transform::from_translation(station_pos),
             ..default()
         },
-        GroundStation { position: station_pos },
+        GroundStation {  },
     ));
 
     let sat_body = meshes.add(Cuboid::new(0.18, 0.10, 0.10));

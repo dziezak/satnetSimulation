@@ -35,7 +35,7 @@ pub struct Earth;
 
 #[derive(Component)]
 pub struct GroundStation {
-    pub position: Vec3,
+    //pub position: Vec3,
 }
 
 #[derive(Component)]

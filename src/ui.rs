@@ -125,7 +125,7 @@ pub fn draw_gui(
                 if ui.button("Snap back to reality").clicked() {
                     sim_state.sim_speed = 0.8;
                     sim_state.earth_radius = 2.5;
-                    sim_state.max_isl_distance = 2.0;
+                    sim_state.max_isl_distance = 2.2;
                 }
                 if ui.button("Reset all RAM").clicked() {
                     sim_state.reset_ram = true;

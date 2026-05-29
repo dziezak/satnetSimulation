@@ -47,3 +47,4 @@ pub fn calculate_satellite_position(sat: &Satellite, angle_offset: f32) -> Vec3 
 
     lan_rot * inclination_rot * local_position
 }
+

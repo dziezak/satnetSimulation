@@ -6,6 +6,7 @@ use bevy::prelude::{Assets, Color, Entity, GizmoPrimitive3d, Gizmos, Handle, Qua
 use bevy::utils::petgraph::algo::greedy_feedback_arc_set;
 use bevy_egui::egui::Shape::Vec;
 use crate::components::{GroundStation, RoutingProtocol, Satellite, SimulationState};
+use crate::movement::calculate_satellite_position;
 
 struct SatData {
     entity:  Entity,
@@ -57,7 +58,12 @@ pub fn update_networks(
                 .find(|s| s.entity == entity)
                 .and_then(|s| s.parent_pos);
 
-            calculate_satellite_metrics(&time, &sim_state, &mut sat, has_access);
+            let will_lose = sat_list.iter()
+                .find(|s| s.entity == entity)
+                .map(|s| s.will_lose_link)
+                .unwrap_or(false);
+
+            calculate_satellite_metrics(&time, &sim_state, &mut sat, has_access, will_lose);
 
             if let Some(parent) = parent_position {
                 if has_access {
@@ -91,8 +97,14 @@ fn building_network_topology(
     let current_station_position = Vec3::new(0.0, sim_state.earth_radius, 0.0);
     let mut sat_list: std::vec::Vec<SatData> = std::vec::Vec::new();
     let mut queue = std::collections::VecDeque::new();
+    let effective_distance = if sim_state.satnet_options.opt_fast_link_lock {
+        sim_state.max_isl_distance
+    } else {
+        sim_state.max_isl_distance * 0.8 //20% stracone na detection time
+    };
 
     for (entity, transform, _, _) in sat_query.iter() {
+
         sat_list.push(SatData {
             entity,
             pos: transform.translation,
@@ -119,13 +131,103 @@ fn building_network_topology(
                 .map(|(_, _, s, _)| s.is_dead)
                 .unwrap_or(false);
 
-            if !sat_list[i].has_path && !sat_is_dead {
+            let sat_status = sat_query.iter()
+                .find(|(e, _, _, _)| *e == sat_list[i].entity)
+                .map(|(_, _, s, _)| s.status_msg.clone())
+                .unwrap_or_default();
+
+            let is_ready = !sat_status.contains("BROADCAST")
+                && !sat_status.contains("INIT")
+                && !sat_status.is_empty()
+                || sat_status.contains("RFP");
+
+            if !sat_list[i].has_path && !sat_is_dead && is_ready {
                 let dist = current_pos.distance(sat_list[i].pos);
-                if dist <= sim_state.max_isl_distance && has_line_of_sight(current_pos, sat_list[i].pos, sim_state.earth_radius) {
+                if dist <= effective_distance && has_line_of_sight(current_pos, sat_list[i].pos, sim_state.earth_radius) {
                     sat_list[i].has_path = true;
                     sat_list[i].parent_pos = Some(current_pos);
                     queue.push_back(sat_list[i].entity);
                 }
+            }
+        }
+    }
+
+    let predict_seconds = 3.0;
+    for sat_data in sat_list.iter_mut() {
+        if let Some(parent) = sat_data.parent_pos {
+            if let Some((_, _, sat, _)) = sat_query.iter().find(|(e, _, _,_)| *e == sat_data.entity) {
+                let future_angle = sat.orbit_speed * predict_seconds * sim_state.sim_speed;
+                let future_pos = calculate_satellite_position(sat, future_angle);
+
+                let current_dist = sat_data.pos.distance(parent);
+                let future_dist = future_pos.distance(parent);
+
+                let loses_los = !has_line_of_sight(future_pos, parent, sim_state.earth_radius);
+                let loses_dist = future_dist > effective_distance;
+                let near_edge = current_dist > effective_distance * 0.8;
+
+                sat_data.will_lose_link = near_edge && ( loses_los || loses_dist);
+            }
+        }
+    }
+
+    if sim_state.satnet_options.opt_rfp_predictable {
+        for i in 0..sat_list.len() {
+            if !sat_list[i].will_lose_link {continue;}
+
+            if let Some(parent) = sat_list[i].parent_pos {
+                if parent == current_station_position {continue;}
+            }
+
+            let future_pos = if let Some((_, _, sat, _)) = sat_query.iter()
+                .find(|(e, _, _, _)| *e == sat_list[i].entity)
+            {
+                let future_angle = sat.orbit_speed * predict_seconds * sim_state.sim_speed;
+                calculate_satellite_position(sat, future_angle)
+            } else {
+                continue;
+            };
+
+            let mut best_parent: Option<Vec3> = None;
+            let mut best_dist = f32::MAX;
+
+            let future_dist_to_station = future_pos.distance(current_station_position);
+            if future_dist_to_station <= effective_distance
+                && has_line_of_sight(future_pos, current_station_position, sim_state.earth_radius)
+            {
+                best_dist = future_dist_to_station;
+                best_parent = Some(current_station_position);
+            }
+
+            for j in 0..sat_list.len() {
+                if i == j {continue;}
+                if !sat_list[j].has_path {continue;}
+                if sat_list[j].will_lose_link {continue;}
+
+                let parent_reaches_ground = has_path_to_ground(&sat_list, j, current_station_position);
+                if !parent_reaches_ground { continue; }
+
+                let parent_future_pos = if let Some((_, _, sat, _)) = sat_query.iter()
+                    .find(|(e, _, _, _)| *e == sat_list[j].entity) //j
+                {
+                    let future_angle = sat.orbit_speed * predict_seconds * sim_state.sim_speed;
+                    calculate_satellite_position(sat, future_angle)
+                } else {
+                    sat_list[j].pos
+                };
+
+                let dist = future_pos.distance(parent_future_pos);
+
+                if dist < effective_distance
+                    && has_line_of_sight(future_pos, parent_future_pos, sim_state.earth_radius)
+                    && dist < best_dist
+                {
+                    best_dist = dist;
+                    best_parent = Some(sat_list[j].pos);
+                }
+            }
+            if let Some(new_parent) = best_parent {
+                sat_list[i].parent_pos = Some(new_parent);
             }
         }
     }
@@ -153,8 +255,15 @@ fn calculate_satellite_metrics(
     sim_state: &SimulationState,
     sat: &mut Satellite,
     has_network_access: bool,
+    will_lose_link: bool,
 ) {
     if sat.is_dead {return;}
+
+    if will_lose_link && sim_state.satnet_options.opt_rfp_predictable {
+        sat.status_msg = "RFP: Pre-routing to next node...".to_string();
+        return;
+    }
+
     let delta = time.delta_seconds() * sim_state.sim_speed;
 
     if !has_network_access {
@@ -164,7 +273,7 @@ fn calculate_satellite_metrics(
             if sim_state.satnet_options.opt_rfp_predictable {
                 sat.status_msg = "RFP ACTIVE: Rerouted seamlessly".to_string();
                 sat.ram_usage = 1.8;
-                sat.connection_timer = -1.0;
+                //sat.connection_timer = -1.0;
             } else if sim_state.satnet_options.opt_fast_link_lock {
                 sat.status_msg = "LINK LOST: HW Lock Flag Triggered".to_string();
                 sat.ram_usage = 1.0;
@@ -180,7 +289,9 @@ fn calculate_satellite_metrics(
                         sat.connection_timer += delta;
                         sat.status_msg = format!("GHOST LINK: Missing Hello packets ({:.1}s/6s)",sat.connection_timer);
                         sat.cpu_load = 40.0;
-                        if !update_ram_is_ok(sat, delta * 2.0) {return}
+                        if !sim_state.satnet_options.opt_low_footprint_top {
+                            if !update_ram_is_ok(sat, delta * 2.0) {return;}
+                        }
                         return;
                     } else {
                         sat.status_msg = "CRITICAL: Waiting for Hello Timeout".to_string();
@@ -211,6 +322,7 @@ fn calculate_satellite_metrics(
     {
         sat.connection_timer = 0.0;
         sat.status_msg = "INIT".to_string();
+        sat.ram_usage = 8.5;
     }
 
     sat.connection_timer += delta;
@@ -232,7 +344,6 @@ fn calculate_satellite_metrics(
         RoutingProtocol::SatnetOSPF => {
             let handshake_time = if sim_state.satnet_options.opt_p2p_mapping { 0.3} else {5.0};
             let base_cpu = if sim_state.satnet_options.opt_p2p_mapping {12.0} else {24.0};
-            let mut base_ram = 8.5;
 
             if sim_state.satnet_options.opt_low_footprint_top {
                 if sat.ram_usage < 1.8 {
@@ -255,10 +366,12 @@ fn calculate_satellite_metrics(
                     sat.cpu_load += 20.0; // dodatkowe obciazenie na czas elekcji
                 }
             } else {
-
                 if !sim_state.satnet_options.opt_low_footprint_top && sat.ram_usage > 20.0 {
                     sat.status_msg = "CONNECTED [DB OVERFLOW: Performance Degaded]".to_string();
                     sat.cpu_load = 80.0;
+                } else if will_lose_link && sim_state.satnet_options.opt_rfp_predictable {
+                    sat.status_msg = "RFP: Pre-prerouting to next node...".to_string();
+                    sat.cpu_load += 5.0;
                 } else {
                     let mut msg = "CONNECTED".to_string();
                     if sim_state.satnet_options.opt_p2p_mapping { msg += " [P2P]"; }
@@ -296,6 +409,10 @@ fn calculate_satellite_metrics(
 fn interpret_metrics_to_color(sat: &Satellite) -> Color {
     if sat.is_dead || sat.ram_usage > 25.0 || sat.cpu_load >= 99.0 || sat.status_msg.contains("TIMEOUT") || sat.status_msg.contains("CRITICAL"){
         return Color::rgb(1.0, 0.0, 0.0);
+    }
+
+    if sat.status_msg.contains("RFP") {
+        return Color::rgb(0.0, 0.5, 1.0);
     }
 
     if sat.status_msg.contains("GHOST LINK") {
@@ -350,5 +467,37 @@ fn get_protocol_line_color(protocol: &RoutingProtocol) -> Color {
         RoutingProtocol::SatnetOSPF => Color::rgb(0.0, 1.0, 0.0),
         RoutingProtocol::ContactGraphRouting => Color::rgb(1.0, 0.6, 0.0),
         RoutingProtocol::CentralizedSDN => Color::rgb(0.0, 0.8, 1.0),
+    }
+}
+
+fn has_path_to_ground(
+    sat_list: &[SatData],
+    start_idx: usize,
+    station_pos: Vec3,
+) -> bool {
+    if let Some(parent) = sat_list[start_idx].parent_pos {
+        if parent == station_pos {
+            return true;
+        }
+    }
+
+    let mut visited = std::collections::HashSet::new();
+    let mut current = start_idx;
+
+    loop {
+        if visited.contains(&current) { return false; }
+        visited.insert(current);
+
+        let parent_pos = match sat_list[current].parent_pos {
+            Some(p) => p,
+            None => return false,
+        };
+
+        if parent_pos == station_pos { return true; }
+
+        match sat_list.iter().position(|s| s.pos == parent_pos) {
+            Some(idx) => current = idx,
+            None => return true,
+        }
     }
 }
